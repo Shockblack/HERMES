@@ -1,0 +1,24 @@
+#!/bin/bash
+#PBS -N lhc
+#PBS -A UCOR0090
+#PBS -j oe
+#PBS -k eod
+#PBS -q casper
+#PBS -l walltime=00:20:00
+#PBS -l select=1:ncpus=1:mpiprocs=1:mem=20GB
+
+
+### Set temp to scratch
+export TMPDIR=${SCRATCH}/${USER}/temp && mkdir -p $TMPDIR
+
+
+cd /glade/u/home/aidenz/Documents/repos/HERMES/scripts
+
+### specify desired module environment
+module purge
+module load conda
+module load cuda
+conda activate /glade/work/aidenz/conda-envs/cluster
+
+### Compile & Run MPI Program
+python lhc_sampling.py
