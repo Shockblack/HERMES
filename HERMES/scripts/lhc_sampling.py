@@ -25,7 +25,7 @@ bounds = np.array([T_eff, Rad_p, M_p, T_eq, CH4, H2O, CO2, O2, O3, N20]).T
 sampler = qmc.LatinHypercube(d=bounds.shape[1])
 
 # Generate samples
-n_samples = 3000000
+n_samples = 1000000
 samples = sampler.random(n_samples)
 
 # Scale samples to the bounds
@@ -66,11 +66,15 @@ scaled_samples = np.insert(scaled_samples, 1, met_sampled, axis=1)
 scaled_samples = np.insert(scaled_samples, 1, logg_sampled, axis=1)
 scaled_samples = np.insert(scaled_samples, 1, rads_sampled, axis=1)
 
-# Add an array at the first column with the index of the sample
-# Want to be able to label the samples when training
-scaled_samples = np.insert(scaled_samples, 0, np.arange(n_samples), axis=1)
+# Array with the filename 'planet_indx.txt' and add all to a dataframe
+planet_names = np.array([f'planet_{i}.txt' for i in range(n_samples)])
+df = pd.DataFrame(scaled_samples, columns=['T_eff', 'Rad_s', 'logg', 'met', 'Rad_p', 'M_p', 'T_eq', 'CH4', 'H2O', 'CO2', 'O2', 'O3', 'N20'])
+df.insert(0, 'file', planet_names)
+
+# Save the DataFrame to a CSV file
+df.to_csv('/glade/derecho/scratch/aidenz/data/HERMES_labels/sampled_parameters.csv', index=False, float_format='%.3f')
 
 # Save the samples to a CSV file
-data_formats = ['%d'] + ['%.3f'] * (scaled_samples.shape[1] - 1)
-np.savetxt('/glade/derecho/scratch/aidenz/data/HERMES_labels/sampled_parameters.csv', scaled_samples, delimiter=',',\
-    header='indx,T_eff,Rad_s,logg,met,Rad_p,M_p,T_eq,CH4,H2O,CO2,O2,O3,N20', fmt=data_formats)
+# data_formats = ['%d'] + ['%.3f'] * (scaled_samples.shape[1] - 1)
+# np.savetxt('/glade/derecho/scratch/aidenz/data/HERMES_labels/sampled_parameters.csv', scaled_samples, delimiter=',',\
+#     header='file,T_eff,Rad_s,logg,met,Rad_p,M_p,T_eq,CH4,H2O,CO2,O2,O3,N20', fmt=data_formats)

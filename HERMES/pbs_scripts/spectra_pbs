@@ -1,12 +1,11 @@
 #!/bin/bash
-#PBS -N lhc
+#PBS -N spectra_gen
 #PBS -A UCOR0090
 #PBS -j oe
 #PBS -k eod
 #PBS -q main@desched1
-#PBS -l walltime=00:20:00
-#PBS -l select=1:ncpus=1:mpiprocs=1:mem=20GB
-
+#PBS -l walltime=07:00:00
+#PBS -l select=1:ncpus=10:mpiprocs=10:mem=200GB
 
 ### Set temp to scratch
 export TMPDIR=${SCRATCH}/${USER}/temp && mkdir -p $TMPDIR
@@ -14,11 +13,14 @@ export TMPDIR=${SCRATCH}/${USER}/temp && mkdir -p $TMPDIR
 
 cd /glade/u/home/aidenz/Documents/repos/HERMES/HERMES/scripts
 
+export POSEIDON_input_data="/glade/work/aidenz/inputs/"
+export PYSYN_CDBS="/glade/work/aidenz/inputs/stellar_grids/"
+
 ### specify desired module environment
 module purge
 module load conda
 module load cuda
-conda activate /glade/work/aidenz/conda-envs/cluster
+conda activate /glade/work/aidenz/conda-envs/POSEIDON
 
 ### Compile & Run MPI Program
-python lhc_sampling.py
+python spectra_gen.py
