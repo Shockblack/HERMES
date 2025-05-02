@@ -115,11 +115,8 @@ def generate_spectra(indx):
     # Save the spectrum to a file
     filename = scratch_dir + file_name
     np.savetxt(filename, spectrum, fmt='%.6e')
-
-    # Add the top of atmosphere radius to the sampled parameters
-    sampled_parameters.at[indx, 'r_up'] = atmosphere['r_up'][-1][0][0]
-    print('Saved spectrum for planet {}'.format(indx))
-    return None
+    
+    return atmosphere['r_up'][-1][0][0]
 
 
 def init_pool(opacities):
@@ -135,11 +132,12 @@ start = time.time()
 
 pool = mp.Pool(10, initializer=init_pool, initargs=(opac,))
 # Generate spectra in parallel
-spectra = pool.map(generate_spectra, range(len(sampled_parameters)))
+rad_top = pool.map(generate_spectra, range(len(sampled_parameters)))
 pool.close()
 pool.join()
 end = time.time()
-print('Time taken for 100000 spectra in parallel: ', end - start)
+print('Time taken for 1000000 spectra in parallel: ', end - start)
+sampled_parameters['r_up'] = rad_top
 
 # Save the sampled parameters with the top of atmosphere radius
 sampled_parameters.to_csv('/glade/derecho/scratch/aidenz/data/HERMES_labels/sampled_parameters.csv', index=False, float_format='%.3f')

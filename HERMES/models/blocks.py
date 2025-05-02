@@ -42,13 +42,12 @@ class convBlock(nn.Module):
         Args:
             x (Tensor): Input tensor.
         """
-        inputs = x
-        x = F.interpolate(x, scale_factor=2)
-        x = self.conv(x)
+        inputs = x # 64
+        x = F.interpolate(x, scale_factor=2) # 128
+        x = self.conv(x) # Calculate this (x,)
         x = self.bn(x)
+        if not self.final_layer:
+            x = self.dropout(x)
         x = self.relu(x)
         x = torch.cat((inputs, x), dim=1)
         return x
-
-
-

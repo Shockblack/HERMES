@@ -17,13 +17,14 @@ class SpecGen(nn.Module):
             out_channels (int): Number of output channels.
         """
         super(SpecGen, self).__init__()
-        self.fc1 = nn.Linear(in_channels, 64)
-        self.conv1 = convBlock(64, 64) # Because we torch.cat the input and output of the convBlock, we need to add the input channels to the output channels
-        self.conv2 = convBlock(128, 128)
-        self.conv3 = convBlock(256, 256)
-        self.conv4 = convBlock(512, 512)
-        self.conv5 = convBlock(1024, 1024)
-        self.fc2 = nn.Linear(1024, out_channels)
+        self.fc1 = nn.Linear(in_channels, 64) # (13 --> 64) --> (bsz, 1, 64)
+        self.conv1 = convBlock(1, 63) # Because we torch.cat the input and output of the convBlock, we need to add the input channels to the output channels (bsz, 64, ??)
+        self.conv2 = convBlock(64, 64)
+        self.conv3 = convBlock(128, 128)
+        self.conv4 = convBlock(256, 256)
+        self.conv5 = convBlock(512, 512, final_layer=True) # 1024 * 64 = 64194
+        # Flattening
+        self.fc2 = nn.Linear(1024 * 64, out_channels) # (flatenned size --> out_size)
 
     def forward(self, x: Tensor) -> Tensor:
         """
@@ -38,6 +39,8 @@ class SpecGen(nn.Module):
         x = self.conv3(x)
         x = self.conv4(x)
         x = self.conv5(x)
+        #Flatten
+        x = x.view(x.size(0), -1)
         x = self.fc2(x)
         return x
 
@@ -55,23 +58,33 @@ def L_phys_delta(model, inputs, gamma):
     output = model(inputs)  # shape: (batch_size, n_wavelengths)
 
     # Compute R_top/R_s and R_p/R_s
-    R_top = inputs[:, -1]
-    R_s = inputs[:, 1]
-    R_p = inputs[:, 4]
+    R_top = inputs[:, -1] # Already in meters
+    R_s = inputs[:, 1] * 6.957e8 # Convert R_s from solar radii to meters
+    R_p = inputs[:, 4] * 6.3781e6 # Convert R_p from Earth radii to meters
 
     loss = gamma * torch.sum(F.relu(outputs - (R_top/R_s)**2) + F.relu((R_p/R_s)**2 - outputs), dim=1)
     return loss.mean()  # mean over batch
 
-# O2 = [1.26,1.28] A-band:[0.76,0.77] B-band:[0.685, 0.695]
-# CO2 = [1.42, 1.45], [1.94, 1.98]
-# CH4 = [1.6, 1.85], [1.3, 1.45], [1.1, 1.2]
-# H2O = [1.35, 1.45], [1.8, 1.95], [1.11, 1.15]
-# O3 = [0.45, 0.75]
-# N2O = [1.51, 1.535], [1.66, 1.71], [1.76, 1.79], [1.95, 2.]
-import torch
-import torch.nn.functional as F
+O2 = [[1.26,1.28], [0.76,0.77], [0.685, 0.695]]
+CO2 = [[1.42, 1.45], [1.94, 1.98]]
+CH4 = [[1.6, 1.85], [1.3, 1.45], [1.1, 1.2]]
+H2O = [[1.35, 1.45], [1.8, 1.95], [1.11, 1.15]]
+O3 = [[0.45, 0.75]]
+N2O = [[1.51, 1.535], [1.66, 1.71], [1.76, 1.79], [1.95, 2.]]
+molecules = [O2, CO2, CH4, H2O, O3, N2O]
+# Load the wavelength grid
+import numpy as np
+wl = np.loadtxt('/glade/derecho/scratch/aidenz/data/HERMES_labels/wl_grid.txt')
+# Loop over the molecules and create bandpass masks
+bandpass_masks = []
 
-def chemical_monotonicity_loss(model, inputs, bandpass_masks, gamma_2, molecule_indices=[7,8,9,10,11,12]):
+for mol_bands in molecules:
+    mask = np.zeros_like(wl, dtype=bool)
+    for band in mol_bands:
+        mask |= (wl >= band[0]) & (wl <= band[1])
+    bandpass_masks.append(mask)
+
+def L_phys_chem(model, inputs, gamma, bandpass_masks = bandpass_masks, molecule_indices=[7,8,9,10,11,12]):
     """
     Computes the chemistry-based gradient loss.
 
@@ -100,4 +113,4 @@ def chemical_monotonicity_loss(model, inputs, bandpass_masks, gamma_2, molecule_
         penalty = F.relu(-ddelta_dxi)  # penalize negative gradients
         loss += penalty.mean()  # mean over batch
 
-    return gamma_2 * loss
+    return gamma * loss
