@@ -1,0 +1,24 @@
+#!/bin/bash
+#PBS -N hermes
+#PBS -A UCOR0090
+#PBS -j oe
+#PBS -k eod
+#PBS -q main@desched1
+#PBS -l walltime=01:00:00
+#PBS -l select=1:ncpus=10:mpiprocs=10:ngpus=2:mem=100GB
+
+
+### Set temp to scratch
+export TMPDIR=${SCRATCH}/${USER}/temp && mkdir -p $TMPDIR
+export scratch_dir="/glade/derecho/scratch/aidenz/"
+
+cd /glade/u/home/aidenz/Documents/repos/HERMES/HERMES/models
+
+### specify desired module environment
+module purge
+module load conda
+module load cuda
+conda activate /glade/work/aidenz/conda-envs/cluster
+
+### Compile & Run MPI Program
+torchrun --standalone --nproc_per_node=gpu train_ddp.py 05_03 50
