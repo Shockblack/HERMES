@@ -4,8 +4,8 @@
 #PBS -j oe
 #PBS -k eod
 #PBS -q main@desched1
-#PBS -l walltime=01:00:00
-#PBS -l select=1:ncpus=10:mpiprocs=10:ngpus=2:mem=100GB
+#PBS -l walltime=12:00:00
+#PBS -l select=1:ncpus=4:mpiprocs=4:ngpus=4:mem=400GB
 
 
 ### Set temp to scratch
@@ -21,4 +21,4 @@ module load cuda
 conda activate /glade/work/aidenz/conda-envs/cluster
 
 ### Compile & Run MPI Program
-torchrun --standalone --nproc_per_node=gpu train_ddp.py 05_03 50
+torchrun --standalone --nproc_per_node=gpu train_ddp.py main 100

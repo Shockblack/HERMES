@@ -30,7 +30,7 @@ class convBlock(nn.Module):
         """
         super(convBlock, self).__init__()
         self.conv = nn.Conv1d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding)
-        self.bn = nn.BatchNorm1d(out_channels)
+        # self.bn = nn.SyncBatchNorm(out_channels)
         self.relu = nn.ReLU(inplace=True)
         self.final_layer = final_layer
         self.dropout = nn.Dropout(p=0.5)
@@ -43,9 +43,9 @@ class convBlock(nn.Module):
             x (Tensor): Input tensor.
         """
         inputs = x # 64
-        x = F.interpolate(x, scale_factor=2) # 128
+        # x = F.interpolate(x, scale_factor=2) # 128
         x = self.conv(x) # Calculate this (x,)
-        x = self.bn(x)
+        # x = self.bn(x)
         if not self.final_layer:
             x = self.dropout(x)
         x = self.relu(x)

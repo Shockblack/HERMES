@@ -3,6 +3,7 @@ from pathlib import Path
 from torch.utils.data import Dataset
 import numpy as np
 import pandas as pd
+import torch
 
 # Create a custom dataset class that inherits from DatasetFolder
 
@@ -10,10 +11,22 @@ class ToTensor(object):
     """Convert ndarrays in sample to Tensors."""
 
     def __call__(self, sample):
-        spectra, parameters = sample['spectra'], sample['parameters']
+        spectra, parameters, rtop = sample['spectra'], sample['parameters'], sample['rtop']
 
-        return {'spectra': torch.from_numpy(image),
-                'parameters': torch.from_numpy(landmarks)}
+        return {'spectra': torch.from_numpy(spectra),
+                'parameters': torch.from_numpy(parameters),
+                'rtop': torch.from_numpy(rtop)}
+
+class Normalize(object):
+
+    def __call__(self, sample, normalization_factor=1e-3):
+        spectra, parameters, rtop = sample['spectra'], sample['parameters'], sample['rtop']
+
+        spectra = spectra / normalization_factor
+
+        return {'spectra': spectra,
+                'parameters': parameters,
+                'rtop': rtop}
 
 class spectraDataset(Dataset):
     def __init__(self, csv_file, root_dir, transform=None):
@@ -30,10 +43,11 @@ class spectraDataset(Dataset):
 
         spec_name = os.path.join(self.root_dir, self.parameters.iloc[idx, 0])
         
-        spectra = np.loadtxt(spec_name)
-        inputs = np.array(self.parameters.iloc[idx, 1:], dtype=np.float32)
+        spectra = np.loadtxt(spec_name, dtype=np.float32)
+        inputs = np.array(self.parameters.iloc[idx, 1:-1], dtype=np.float32)
+        rtop = np.array(self.parameters.iloc[idx, -1], dtype=np.float32)
 
-        sample = {'spectra': spectra, 'parameters': inputs}
+        sample = {'spectra': spectra, 'parameters': inputs, 'rtop': rtop}
 
         if self.transform:
             sample = self.transform(sample)

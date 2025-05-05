@@ -17,14 +17,14 @@ class SpecGen(nn.Module):
             out_channels (int): Number of output channels.
         """
         super(SpecGen, self).__init__()
-        self.fc1 = nn.Linear(in_channels, 64) # (13 --> 64) --> (bsz, 1, 64)
+        self.fc1 = nn.Linear(in_channels, 64) # (13 --> 64) --> (1, 63, bsz)
         self.conv1 = convBlock(1, 63) # Because we torch.cat the input and output of the convBlock, we need to add the input channels to the output channels (bsz, 64, ??)
         self.conv2 = convBlock(64, 64)
         self.conv3 = convBlock(128, 128)
-        self.conv4 = convBlock(256, 256)
-        self.conv5 = convBlock(512, 512, final_layer=True) # 1024 * 64 = 64194
+        # self.conv4 = convBlock(256, 256, final_layer=True) # 512 * 64 = 32768
+        # self.conv5 = convBlock(512, 512, final_layer=True) # 1024 * 64 = 64194
         # Flattening
-        self.fc2 = nn.Linear(1024 * 64, out_channels) # (flatenned size --> out_size)
+        self.fc2 = nn.Linear(256 * 64, out_channels) # (flatenned size --> out_size)
 
     def forward(self, x: Tensor) -> Tensor:
         """
@@ -34,17 +34,18 @@ class SpecGen(nn.Module):
             x (Tensor): Input tensor.
         """
         x = F.relu(self.fc1(x))
+        x = x.unsqueeze(1)
         x = self.conv1(x)
         x = self.conv2(x)
         x = self.conv3(x)
-        x = self.conv4(x)
-        x = self.conv5(x)
+        # x = self.conv4(x)
+        # x = self.conv5(x)
         #Flatten
         x = x.view(x.size(0), -1)
         x = self.fc2(x)
         return x
 
-def L_phys_delta(model, inputs, gamma):
+def L_phys_delta(model, inputs, rtop, gamma, norm_factor):
     """
     Physical loss term that constrains the transit depth to be between (R_p/R_s)**2 and (R_p+H/R_s)**2
     where H is the height of the atmosphere model. We define R_top = R_p + H.
@@ -55,14 +56,20 @@ def L_phys_delta(model, inputs, gamma):
         gamma (float): Weighting factor for the loss term.
     """
     inputs = inputs.clone().detach().requires_grad_(True)  # enable gradient tracking
+    R_top = rtop.clone().detach().requires_grad_(True)  # enable gradient tracking
     output = model(inputs)  # shape: (batch_size, n_wavelengths)
 
     # Compute R_top/R_s and R_p/R_s
-    R_top = inputs[:, -1] # Already in meters
     R_s = inputs[:, 1] * 6.957e8 # Convert R_s from solar radii to meters
     R_p = inputs[:, 4] * 6.3781e6 # Convert R_p from Earth radii to meters
+    RP_RS = (R_p/R_s)**2 / norm_factor
+    # Match shape to output
+    RP_RS = RP_RS.unsqueeze(1).expand(-1, output.shape[1])  # shape: (batch_size, n_wavelengths)
+    RT_RS = (R_top/R_s)**2 / norm_factor
+    # Match shape to output
+    RT_RS = RT_RS.unsqueeze(1).expand(-1, output.shape[1])  # shape: (batch_size, n_wavelengths)
 
-    loss = gamma * torch.sum(F.relu(outputs - (R_top/R_s)**2) + F.relu((R_p/R_s)**2 - outputs), dim=1)
+    loss = gamma * torch.sum(F.relu(output-RT_RS) + F.relu(RP_RS - output), dim=1)
     return loss.mean()  # mean over batch
 
 O2 = [[1.26,1.28], [0.76,0.77], [0.685, 0.695]]
@@ -111,6 +118,6 @@ def L_phys_chem(model, inputs, gamma, bandpass_masks = bandpass_masks, molecule_
 
         ddelta_dxi = grad[:, idx]  # shape: (batch_size,)
         penalty = F.relu(-ddelta_dxi)  # penalize negative gradients
-        loss += penalty.mean()  # mean over batch
+        loss = loss + penalty.mean()  # mean over batch
 
     return gamma * loss
